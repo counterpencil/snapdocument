@@ -22,8 +22,7 @@ function App() {
       return;
     }
     setFileName(file.name);
-    // 기본 템플릿명 = 파일명에서 확장자 제거
-    setTemplateName(file.name.replace(/\.(xlsx|xls)$/i, ''));
+    setTemplateName(cleanTemplateName(file.name));
 
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data);
@@ -35,7 +34,30 @@ function App() {
       return;
     }
 
-    const headers = rows[0] as string[];
+    // 헤더 행 찾기: 가장 많은 값이 있는 행을 헤더로 사용
+    // (첫 행이 "5월 식단표" 같은 제목이고 두 번째 행이 실제 컬럼인 경우 대응)
+    let bestRow = rows[0];
+    let bestCount = bestRow.filter((c) => c != null && String(c).trim() !== '').length;
+
+    for (let i = 1; i < Math.min(rows.length, 6); i++) {
+      const row = rows[i];
+      const count = row.filter((c) => c != null && String(c).trim() !== '').length;
+      if (count > bestCount) {
+        bestRow = row;
+        bestCount = count;
+      }
+    }
+
+    // 빈 컬럼은 제외
+    const headers = bestRow
+      .filter((c) => c != null && String(c).trim() !== '')
+      .map((c) => String(c).trim());
+
+    if (headers.length === 0) {
+      alert('컬럼을 찾을 수 없어요. 첫 행에 컬럼명이 있는 엑셀 파일을 올려주세요.');
+      return;
+    }
+
     const analyzedColumns: Column[] = headers.map((h, i) => ({
       index: i,
       header: h,
@@ -178,6 +200,24 @@ function App() {
       </footer>
     </div>
   );
+}
+
+function cleanTemplateName(filename: string): string {
+  // 확장자 제거
+  let name = filename.replace(/\.(xlsx|xls)$/i, '');
+  // 타임스탬프+언더스코어 패턴 제거 (예: "1780470644228_______" → "")
+  name = name.replace(/^\d+_+/, '');
+  // 남은 앞부분 언더스코어 제거
+  name = name.replace(/^_+/, '');
+  // 숫자+특수문자만 남았으면 의미 없는 이름 → 파일명 그대로
+  if (/^[\d._\s]+$/.test(name) || name.trim() === '') {
+    name = filename.replace(/\.(xlsx|xls)$/i, '');
+    // 그래도 안 되면 언더스코어를 공백으로
+    name = name.replace(/_+/g, ' ');
+  }
+  // 언더스코어는 공백으로
+  name = name.replace(/_+/g, ' ');
+  return name.trim();
 }
 
 function guessType(header: string): string {
