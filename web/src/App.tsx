@@ -90,9 +90,19 @@ function App() {
   }, [handleFile]);
 
   const handleSave = () => {
-    // TODO: 실제 API 호출로 저장
-    console.log('저장:', { templateName, columns });
     setSaved(true);
+  };
+
+  const handleDownload = () => {
+    // 템플릿 컬럼으로 엑셀 생성해서 다운로드
+    const headerRow = columns.map((c) => c.header);
+    const ws = XLSX.utils.aoa_to_sheet([headerRow]);
+    // 헤더 행 너비 자동 조정
+    const wscols = columns.map(() => ({ wch: 15 }));
+    ws['!cols'] = wscols;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    XLSX.writeFile(wb, `${templateName || '템플릿'}.xlsx`);
   };
 
   const handleReset = () => {
@@ -135,17 +145,33 @@ function App() {
           </section>
         ) : saved ? (
           /* ── 저장 완료 ── */
-          <section className="section section--done">
-            <div className="done-icon">✅</div>
-            <h2>템플릿이 저장되었어요</h2>
-            <p className="done-name">{templateName}</p>
-            <p className="done-desc">
-              이제 앱에서 이 템플릿을 선택할 수 있어요.
-            </p>
+          <>
+            <section className="section section--done">
+              <div className="done-icon">✅</div>
+              <h2>템플릿이 저장되었어요</h2>
+              <p className="done-name">{templateName}</p>
+              <p className="done-desc">
+                이제 앱에서 이 템플릿을 선택할 수 있어요.
+              </p>
+            </section>
+            <section className="section">
+              <h2 className="step-title">📋 등록된 컬럼</h2>
+              <div className="column-list">
+                {columns.map((col) => (
+                  <div key={col.index} className="column-item">
+                    <span className="column-item__type">{typeLabel(col.type)}</span>
+                    <span className="column-item__name">{col.header}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+            <button className="btn btn--primary" onClick={handleDownload}>
+              📥 템플릿 엑셀 다운로드
+            </button>
             <button className="btn btn--outline" onClick={handleReset}>
               다른 템플릿 등록하기
             </button>
-          </section>
+          </>
         ) : (
           /* ── 컬럼 분석 결과 ── */
           <>
@@ -209,15 +235,13 @@ function cleanTemplateName(filename: string): string {
   name = name.replace(/^\d+_+/, '');
   // 남은 앞부분 언더스코어 제거
   name = name.replace(/^_+/, '');
-  // 숫자+특수문자만 남았으면 의미 없는 이름 → 파일명 그대로
-  if (/^[\d._\s]+$/.test(name) || name.trim() === '') {
-    name = filename.replace(/\.(xlsx|xls)$/i, '');
-    // 그래도 안 되면 언더스코어를 공백으로
-    name = name.replace(/_+/g, ' ');
-  }
   // 언더스코어는 공백으로
-  name = name.replace(/_+/g, ' ');
-  return name.trim();
+  name = name.replace(/_+/g, ' ').trim();
+  // 숫자+특수문자만 남았으면 의미 없는 이름 → 공백 (사용자가 직접 입력하게)
+  if (/^[\d.\s]+$/.test(name) || name === '') {
+    return '';
+  }
+  return name;
 }
 
 function guessType(header: string): string {
