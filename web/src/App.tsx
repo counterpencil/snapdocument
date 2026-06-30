@@ -1,5 +1,6 @@
 import { useState, useCallback, type DragEvent } from 'react';
 import * as XLSX from 'xlsx';
+import { buildSpreadsheetPreviewHtml } from './utils/spreadsheetRichPreview';
 import './App.css';
 
 interface Column {
@@ -15,6 +16,7 @@ function App() {
   const [fileName, setFileName] = useState('');
   const [saved, setSaved] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState('');
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
@@ -34,8 +36,7 @@ function App() {
       return;
     }
 
-    // 헤더 행 찾기: 가장 많은 값이 있는 행을 헤더로 사용
-    // (첫 행이 "5월 식단표" 같은 제목이고 두 번째 행이 실제 컬럼인 경우 대응)
+    // 헤더 행 찾기
     let bestRow = rows[0];
     let bestCount = bestRow.filter((c) => c != null && String(c).trim() !== '').length;
 
@@ -48,7 +49,6 @@ function App() {
       }
     }
 
-    // 빈 컬럼은 제외
     const headers = bestRow
       .filter((c) => c != null && String(c).trim() !== '')
       .map((c) => String(c).trim());
@@ -66,6 +66,12 @@ function App() {
     }));
 
     setColumns(analyzedColumns);
+
+    // 리치 미리보기 생성
+    const preview = await buildSpreadsheetPreviewHtml(data);
+    if ('html' in preview) {
+      setPreviewHtml(preview.html);
+    }
   }, []);
 
   const handleDrop = useCallback((e: DragEvent) => {
@@ -94,10 +100,8 @@ function App() {
   };
 
   const handleDownload = () => {
-    // 템플릿 컬럼으로 엑셀 생성해서 다운로드
     const headerRow = columns.map((c) => c.header);
     const ws = XLSX.utils.aoa_to_sheet([headerRow]);
-    // 헤더 행 너비 자동 조정
     const wscols = columns.map(() => ({ wch: 15 }));
     ws['!cols'] = wscols;
     const wb = XLSX.utils.book_new();
@@ -110,6 +114,7 @@ function App() {
     setTemplateName('');
     setFileName('');
     setSaved(false);
+    setPreviewHtml('');
   };
 
   return (
@@ -121,7 +126,6 @@ function App() {
 
       <main className="main">
         {columns.length === 0 ? (
-          /* ── 업로드 영역 ── */
           <section className="section">
             <h2 className="step-title">① 엑셀 파일 올리기</h2>
             <label
@@ -144,7 +148,6 @@ function App() {
             </label>
           </section>
         ) : saved ? (
-          /* ── 저장 완료 ── */
           <>
             <section className="section section--done">
               <div className="done-icon">✅</div>
@@ -173,7 +176,6 @@ function App() {
             </button>
           </>
         ) : (
-          /* ── 컬럼 분석 결과 ── */
           <>
             <section className="section">
               <h2 className="step-title">
@@ -183,9 +185,7 @@ function App() {
               <div className="column-list">
                 {columns.map((col) => (
                   <div key={col.index} className="column-item">
-                    <span className="column-item__type">
-                      {typeLabel(col.type)}
-                    </span>
+                    <span className="column-item__type">{typeLabel(col.type)}</span>
                     <span className="column-item__name">{col.header}</span>
                   </div>
                 ))}
@@ -194,6 +194,17 @@ function App() {
                 컬럼명이 잘못 분석되었다면 PC에서 직접 수정할 수 있어요 (추후 기능)
               </p>
             </section>
+
+            {/* 리치 미리보기 */}
+            {previewHtml && (
+              <section className="section">
+                <h2 className="step-title">📊 문서 미리보기</h2>
+                <div
+                  className="spreadsheet-preview"
+                  dangerouslySetInnerHTML={{ __html: previewHtml }}
+                />
+              </section>
+            )}
 
             <section className="section">
               <h2 className="step-title">③ 템플릿 이름</h2>
@@ -229,15 +240,10 @@ function App() {
 }
 
 function cleanTemplateName(filename: string): string {
-  // 확장자 제거
   let name = filename.replace(/\.(xlsx|xls)$/i, '');
-  // 타임스탬프+언더스코어 패턴 제거 (예: "1780470644228_______" → "")
   name = name.replace(/^\d+_+/, '');
-  // 남은 앞부분 언더스코어 제거
   name = name.replace(/^_+/, '');
-  // 언더스코어는 공백으로
   name = name.replace(/_+/g, ' ').trim();
-  // 숫자+특수문자만 남았으면 의미 없는 이름 → 공백 (사용자가 직접 입력하게)
   if (/^[\d.\s]+$/.test(name) || name === '') {
     return '';
   }

@@ -232,3 +232,45 @@ body {
 .footer__link:hover {
   text-decoration: underline;
 }
+
+/* ─── 스프레드시트 미리보기 ─── */
+.spreadsheet-preview {
+  overflow-x: auto;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.spreadsheet-sheet-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  background: #e5e7eb;
+  border-radius: 6px;
+  display: inline-block;
+}
+.spreadsheet-sheet-wrap {
+  overflow-x: auto;
+}
+.spreadsheet-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.2;
+}
+.spreadsheet-preview-table td,
+.spreadsheet-preview-table th {
+  border: 1px solid #d1d5db;
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+  min-width: 60px;
+}
+.spreadsheet-preview-table th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+.spreadsheet-preview-table td {
+  background: #ffffff;
+}
