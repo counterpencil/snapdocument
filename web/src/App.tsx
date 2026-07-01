@@ -67,10 +67,20 @@ function App() {
 
     setColumns(analyzedColumns);
 
-    // 리치 미리보기 생성
+    // 리치 미리보기 생성 (실패 시 기본 테이블로 폴백)
     const preview = await buildSpreadsheetPreviewHtml(data);
     if ('html' in preview) {
       setPreviewHtml(preview.html);
+    } else {
+      // 기본 폴백: 첫 시트를 HTML 테이블로
+      try {
+        const ws = workbook.Sheets[workbook.SheetNames[0]];
+        const basicHtml = XLSX.utils.sheet_to_html(ws);
+        const tableHtml = basicHtml.replace(/<table\b/i, '<table class="spreadsheet-preview-table"');
+        setPreviewHtml(`<div class="spreadsheet-sheet-wrap">${tableHtml}</div>`);
+      } catch {
+        setPreviewHtml('');
+      }
     }
   }, []);
 
