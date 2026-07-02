@@ -189,6 +189,9 @@ function DocumentConvert() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ mappedData: Record<string, string>; pcUrl?: string } | null>(null);
   const [error, setError] = useState('');
+  const [filePreviewHtml, setFilePreviewHtml] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [dragOver, setDragOver] = useState(false);
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -202,11 +205,43 @@ function DocumentConvert() {
 
   const selected = templates.find(t => t.id === selectedId);
 
+  const handleFileUpload = useCallback(async (file: File) => {
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      alert('엑셀 파일(.xlsx, .xls)만 업로드할 수 있어요.');
+      return;
+    }
+    setFileName(file.name);
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
+
+    // 모든 셀을 텍스트로 변환
+    const texts: string[] = [];
+    for (const row of rows) {
+      for (const cell of row) {
+        if (cell != null && String(cell).trim()) texts.push(String(cell).trim());
+      }
+    }
+    setInputText(texts.join('\n'));
+
+    // 미리보기 HTML 생성
+    const basicHtml = XLSX.utils.sheet_to_html(sheet);
+    setFilePreviewHtml(basicHtml.replace(/<table\b/i, '<table class="spreadsheet-preview-table"'));
+  }, []);
+
+  const handleDrop = useCallback((e: DragEvent) => {
+    e.preventDefault(); setDragOver(false);
+    const f = e.dataTransfer.files[0]; if (f) handleFileUpload(f);
+  }, [handleFileUpload]);
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (f) handleFileUpload(f);
+  }, [handleFileUpload]);
+
   const handleAnalyze = async () => {
     if (!inputText.trim() || !selectedId) return;
-    setLoading(true);
-    setError('');
-    setResult(null);
+    setLoading(true); setError(''); setResult(null);
     try {
       const res = await fetch(`${WORKER_URL}/api/analyze`, {
         method: 'POST',
@@ -256,18 +291,42 @@ function DocumentConvert() {
       </section>
 
       <section className="section">
-        <h2 className="step-title">② 데이터 입력</h2>
+        <h2 className="step-title">② 정보 문서 업로드</h2>
+        <label className={`dropzone ${dragOver ? 'dropzone--active' : ''}`}
+          onDrop={handleDrop}
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+        >
+          <input type="file" accept=".xlsx,.xls" onChange={handleInputChange} className="dropzone__input" />
+          <div className="dropzone__icon">{fileName ? '📄' : '📁'}</div>
+          <p className="dropzone__text">
+            {fileName ? fileName : '엑셀 파일을 드래그하거나 클릭하세요'}
+          </p>
+          <p className="dropzone__hint">.xlsx, .xls — 셀 내용을 텍스트로 추출해 매핑합니다</p>
+        </label>
+
+        <div className="input-divider">
+          <span>또는 텍스트 직접 입력</span>
+        </div>
+
         <textarea
           className="input input--textarea"
           value={inputText}
           onChange={e => setInputText(e.target.value)}
-          placeholder={`예시:\n날짜: 2026-06-30\n성명: 홍길동\n체온: 36.5\n수축기혈압: 120\n이완기혈압: 80\n비고: 특이사항 없음`}
-          rows={8}
+          placeholder={`예시:\n이름: 홍길동\n생년월일: 1960-05-20\n체온: 36.5\n...`}
+          rows={6}
         />
       </section>
 
+      {filePreviewHtml && (
+        <section className="section">
+          <h2 className="step-title">📊 업로드 문서 미리보기</h2>
+          <div className="spreadsheet-preview" dangerouslySetInnerHTML={{ __html: filePreviewHtml }} />
+        </section>
+      )}
+
       <button className="btn btn--primary" onClick={handleAnalyze} disabled={!inputText.trim() || !selectedId || loading}>
-        {loading ? '분석 중...' : '✨ 분석하기'}
+        {loading ? '분석 중...' : '✨ 변환 실행'}
       </button>
 
       {error && <div className="error-msg">{error}</div>}

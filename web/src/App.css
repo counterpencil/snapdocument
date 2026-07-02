@@ -356,3 +356,20 @@ body {
 
 /* ─── Muted ─── */
 .muted { color: #9ca3af; font-size: 14px; }
+
+/* ─── 입력 구분선 ─── */
+.input-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 12px;
+  color: #9ca3af;
+  font-size: 13px;
+}
+.input-divider::before,
+.input-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}

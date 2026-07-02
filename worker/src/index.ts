@@ -1,9 +1,10 @@
 /**
- * 스냅문서 Worker — API 서버
+ * 스냅문서 Worker — API 서버 (DeepSeek LLM)
  */
 
 interface Env {
-  BUCKET: R2Bucket;
+  BUCKET?: R2Bucket;
+  DEEPSEEK_KEY?: string;
 }
 
 interface TemplateColumn {
@@ -36,17 +37,13 @@ function corsHeaders(): HeadersInit {
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      'Content-Type': 'application/json',
-      ...corsHeaders(),
-    },
+    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
   });
 }
 
-// ─── 모의 템플릿 저장소 (MVP: 메모리, 나중에 D1) ───
+// ─── 템플릿 저장소 (메모리, 나중에 D1) ───
 const templates = new Map<string, Template>();
 
-// 기본 템플릿 추가
 templates.set('health-check', {
   id: 'health-check',
   name: '건강체크리스트',
@@ -71,81 +68,107 @@ templates.set('visit-log', {
   ],
 });
 
-// ─── 모의 DeepSeek 매핑 (MVP: 패턴 기반, 나중에 실제 LLM 교체) ───
-function mockLLMMap(text: string, columns: TemplateColumn[]): Record<string, string> {
-  const result: Record<string, string> = {};
+// ─── DeepSeek LLM 매핑 ───
+async function deepseekMap(
+  text: string,
+  columns: TemplateColumn[],
+  apiKey: string,
+): Promise<Record<string, string>> {
+  const columnList = columns
+    .map((c) => `- ${c.header} (${c.type}): ${c.description}`)
+    .join('\n');
 
-  for (const col of columns) {
-    result[col.header] = extractValue(text, col);
+  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + apiKey,
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [
+        {
+          role: 'system',
+          content: `너는 텍스트에서 주어진 컬럼에 맞는 값을 찾아 매핑하는 도우미다. 반드시 JSON 객체만 출력해라. 찾을 수 없는 값은 빈 문자열("")로. 키는 반드시 주어진 컬럼명 그대로 사용해라.`,
+        },
+        {
+          role: 'user',
+          content: `다음 텍스트에서 각 컬럼에 맞는 값을 찾아 JSON으로 반환해줘:\n\n텍스트:\n"""\n${text}\n"""\n\n컬럼:\n${columnList}\n\nJSON만 출력:`,
+        },
+      ],
+      temperature: 0,
+      max_tokens: 1000,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`DeepSeek API error: ${response.status}`);
   }
 
+  const data = await response.json() as {
+    choices: Array<{ message: { content: string } }>;
+  };
+
+  const raw = data.choices?.[0]?.message?.content || '{}';
+  // JSON 블록 추출 (```json ... ``` 감싸진 경우 대비)
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  const jsonStr = jsonMatch ? jsonMatch[0] : raw;
+
+  try {
+    const parsed = JSON.parse(jsonStr);
+    // 모든 컬럼에 대해 값이 없으면 빈 문자열
+    const result: Record<string, string> = {};
+    for (const col of columns) {
+      result[col.header] = String(parsed[col.header] ?? '').trim();
+    }
+    return result;
+  } catch {
+    // JSON 파싱 실패 시 모의 매퍼로 폴백
+    return mockMap(text, columns);
+  }
+}
+
+// ─── 모의 매퍼 (DeepSeek 없을 때 폴백) ───
+function mockMap(text: string, columns: TemplateColumn[]): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const col of columns) {
+    result[col.header] = extractByPattern(text, col);
+  }
   return result;
 }
 
-function extractValue(text: string, col: TemplateColumn): string {
+function extractByPattern(text: string, col: TemplateColumn): string {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const labels = [col.header];
+  if (col.description) labels.push(col.description);
 
-  // 공통: "컬럼명: 값" 또는 "컬럼명 : 값" 패턴 먼저 검사
-  const labelVariants = [col.header];
-  if (col.description) labelVariants.push(col.description);
-
-  for (const label of labelVariants) {
+  // "컬럼명: 값" 패턴
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     for (const line of lines) {
-      const pattern = new RegExp(`${escapeRegex(label)}\\s*[:：]\\s*(.+)`);
-      const match = line.match(pattern);
-      if (match && match[1].trim()) {
-        return match[1].trim();
-      }
+      const m = line.match(new RegExp(`${escaped}\\s*[:：]\\s*(.+)`));
+      if (m?.[1]?.trim()) return m[1].trim();
     }
   }
-
-  // "컬럼명 값" (공백 구분) 패턴
-  for (const label of labelVariants) {
+  // "컬럼명 값" 패턴
+  for (const label of labels) {
     for (const line of lines) {
       if (line.startsWith(label)) {
         const rest = line.slice(label.length).trim();
-        if (rest && !rest.startsWith(':') && !rest.startsWith('：')) {
-          return rest;
-        }
+        if (rest && !rest.startsWith(':') && !rest.startsWith('：')) return rest;
       }
     }
   }
 
-  switch (col.type) {
-    case 'date': {
-      const dateMatch = text.match(/(\d{4}[.\-/년]\s*\d{1,2}[.\-/월]\s*\d{1,2}[일]?)/);
-      return dateMatch ? dateMatch[1] : '';
-    }
-    case 'number': {
-      const numMatch = text.match(/([\d.]+)/);
-      return numMatch ? numMatch[1] : '';
-    }
-    case 'text': {
-      if (col.header === '성명' || col.header === '방문자' || col.description.includes('이름')) {
-        // 한국 이름: 3글자 선호, 성씨+1~2글자
-        const names: string[] = [];
-        const re = /([김김이박최정강조윤장임한오서신권황안송류전홍고문양손배백허남심노하곽성차주우구민진지나염변여원채천방공편염석][가-힣]{1,3})/g;
-        let m;
-        while ((m = re.exec(text)) !== null) {
-          // 컬럼 헤더 자체는 제외 (성명, 이름, 방문자 등)
-          const word = m[1];
-          if (!labelVariants.includes(word)) {
-            names.push(word);
-          }
-        }
-        // 가장 긴 이름 선호 (보통 3글자 이름)
-        names.sort((a, b) => b.length - a.length);
-        return names[0] || '';
-      }
-      return '';
-    }
-    default:
-      return '';
+  if (col.type === 'date') {
+    const m = text.match(/(\d{4}[.\-/년]\s*\d{1,2}[.\-/월]\s*\d{1,2}[일]?)/);
+    return m?.[1] ?? '';
   }
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (col.type === 'number') {
+    const m = text.match(/([\d.]+)/);
+    return m?.[1] ?? '';
+  }
+  return '';
 }
 
 // ─── 라우터 ───
@@ -154,64 +177,57 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }
 
-    // POST /api/templates — 템플릿 등록
+    // POST /api/templates
     if (path === '/api/templates' && request.method === 'POST') {
       try {
         const body = await request.json() as { name: string; columns: TemplateColumn[] };
-        const id = crypto.randomUUID();
         const template: Template = {
-          id,
+          id: crypto.randomUUID(),
           name: body.name,
           columns: body.columns,
         };
-        templates.set(id, template);
+        templates.set(template.id, template);
         return jsonResponse({ template });
-      } catch (e) {
+      } catch {
         return jsonResponse({ error: 'Invalid request' }, 400);
       }
     }
 
-    // GET /api/templates — 템플릿 목록
+    // GET /api/templates
     if (path === '/api/templates' && request.method === 'GET') {
       const list = Array.from(templates.values()).map(({ id, name, columns }) => ({
-        id,
-        name,
-        columnCount: columns.length,
+        id, name, columnCount: columns.length,
       }));
       return jsonResponse({ templates: list });
     }
 
-    // POST /api/analyze — 텍스트 → 컬럼 매핑
+    // POST /api/analyze
     if (path === '/api/analyze' && request.method === 'POST') {
       try {
         const body = await request.json() as AnalyzeRequest;
         const template = templates.get(body.templateId);
-        if (!template) {
-          return jsonResponse({ error: 'Template not found' }, 404);
+        if (!template) return jsonResponse({ error: 'Template not found' }, 404);
+
+        let mapped: Record<string, string>;
+        if (env.DEEPSEEK_KEY) {
+          mapped = await deepseekMap(body.text, template.columns, env.DEEPSEEK_KEY);
+        } else {
+          mapped = mockMap(body.text, template.columns);
         }
 
-        const mapped = mockLLMMap(body.text, template.columns);
-
-        // R2에 결과 저장
         const resultId = crypto.randomUUID();
-        const resultData = {
-          id: resultId,
-          templateId: template.id,
-          templateName: template.name,
-          mappedData: mapped,
-          createdAt: new Date().toISOString(),
-        };
-
-        // R2 저장 (나중에 실제 R2 바인딩 추가 시 활성화)
-        // await env.BUCKET.put(`results/${resultId}.json`, JSON.stringify(resultData));
-
         return jsonResponse({
-          result: resultData,
+          result: {
+            id: resultId,
+            templateId: template.id,
+            templateName: template.name,
+            mappedData: mapped,
+            createdAt: new Date().toISOString(),
+          },
           pcUrl: `https://snapdocument.pages.dev/r/${resultId}`,
         });
       } catch (e) {
@@ -219,14 +235,11 @@ export default {
       }
     }
 
-    // GET /r/:id — 결과 조회 (PC에서 보기)
+    // GET /r/:id
     if (path.startsWith('/r/') && request.method === 'GET') {
-      const id = path.split('/r/')[1];
-      // 나중에 R2에서 조회
-      return jsonResponse({ message: 'Results expire after 24 hours. R2 lookup pending.' }, 404);
+      return jsonResponse({ message: '24h TTL. R2 pending.' }, 404);
     }
 
-    // 404
     return jsonResponse({ error: 'Not found' }, 404);
   },
 };
