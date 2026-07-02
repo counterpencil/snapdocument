@@ -25,7 +25,7 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <div className="beta-badge">🧪 테스트 사이트</div>
+        <div className="beta-badge">테스트 사이트</div>
         <h1 className="logo">스냅문서</h1>
         <p className="subtitle">찍으면 문서가 됩니다</p>
       </header>
@@ -35,13 +35,13 @@ function App() {
           className={`tab ${tab === 'template' ? 'tab--active' : ''}`}
           onClick={() => setTab('template')}
         >
-          📋 템플릿 등록
+          템플릿 등록
         </button>
         <button
           className={`tab ${tab === 'convert' ? 'tab--active' : ''}`}
           onClick={() => setTab('convert')}
         >
-          ✨ 문서 변환
+          문서 변환
         </button>
       </nav>
 
@@ -57,7 +57,7 @@ function App() {
           <a href="#" className="footer__link">Google Play</a>
         </div>
         */}
-        <div className="footer__test">🧪 테스트 사이트 — 데이터는 24시간 후 자동 삭제됩니다</div>
+        <div className="footer__test">테스트 사이트 — 데이터는 24시간 후 자동 삭제됩니다</div>
       </footer>
     </div>
   );
@@ -159,10 +159,10 @@ function TemplateRegister() {
         <p className="done-desc">이제 앱 또는 PC에서 이 템플릿을 선택할 수 있어요.</p>
       </section>
       <section className="section">
-        <h2 className="step-title">📋 등록된 컬럼</h2>
+        <h2 className="step-title">등록된 컬럼</h2>
         <div className="column-list">{columns.map(c => <div key={c.index} className="column-item"><span className="column-item__type">{typeLabel(c.type)}</span><span className="column-item__name">{c.header}</span></div>)}</div>
       </section>
-      <button className="btn btn--primary" onClick={handleDownload}>📥 템플릿 엑셀 다운로드</button>
+      <button className="btn btn--primary" onClick={handleDownload}>템플릿 엑셀 다운로드</button>
       <button className="btn btn--outline" onClick={handleReset}>다른 템플릿 등록하기</button>
     </>
   );
@@ -174,7 +174,7 @@ function TemplateRegister() {
         <div className="column-list">{columns.map(c => <div key={c.index} className="column-item"><span className="column-item__type">{typeLabel(c.type)}</span><span className="column-item__name">{c.header}</span></div>)}</div>
         <p className="hint">컬럼명이 잘못 분석되었다면 PC에서 직접 수정할 수 있어요 (추후 기능)</p>
       </section>
-      {previewHtml && <section className="section"><h2 className="step-title">📊 문서 미리보기</h2><div className="spreadsheet-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} /></section>}
+      {previewHtml && <section className="section"><h2 className="step-title">문서 미리보기</h2><div className="spreadsheet-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} /></section>}
       <section className="section">
         <h2 className="step-title">③ 템플릿 이름</h2>
         <input type="text" className="input" value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="예: 건강체크리스트" />
@@ -324,13 +324,13 @@ function DocumentConvert() {
 
       {filePreviewHtml && (
         <section className="section">
-          <h2 className="step-title">📊 업로드 문서 미리보기</h2>
+          <h2 className="step-title">업로드 문서 미리보기</h2>
           <div className="spreadsheet-preview" dangerouslySetInnerHTML={{ __html: filePreviewHtml }} />
         </section>
       )}
 
       <button className="btn btn--primary" onClick={handleAnalyze} disabled={!inputText.trim() || !selectedId || loading}>
-        {loading ? '분석 중...' : '✨ 변환 실행'}
+        {loading ? '분석 중...' : '변환 실행'}
       </button>
 
       {error && <div className="error-msg">{error}</div>}
@@ -338,7 +338,7 @@ function DocumentConvert() {
       {result && selected && (
         <>
           <section className="section">
-            <h2 className="step-title">📊 매핑 결과 — {selected.name}</h2>
+            <h2 className="step-title">매핑 결과 — {selected.name}</h2>
             <table className="result-table">
               <thead>
                 <tr>{selected.columns.map(c => <th key={c.index}>{c.header}</th>)}</tr>
@@ -349,7 +349,7 @@ function DocumentConvert() {
             </table>
             {result.pcUrl && <p className="hint" style={{ marginTop: 8 }}>🔗 PC 링크: {result.pcUrl}</p>}
           </section>
-          <button className="btn btn--primary" onClick={handleDownloadResult}>📥 결과 엑셀 다운로드</button>
+          <button className="btn btn--primary" onClick={handleDownloadResult}>결과 엑셀 다운로드</button>
         </>
       )}
     </>
@@ -373,7 +373,7 @@ function guessType(header: string): string {
 }
 
 function typeLabel(type: string): string {
-  switch (type) { case 'date': return '📅'; case 'number': return '🔢'; default: return '📝'; }
+  switch (type) { case 'date': return '날짜'; case 'number': return '숫자'; default: return '텍스트'; }
 }
 
 export default App;
