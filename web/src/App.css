@@ -31,6 +31,16 @@ body {
   color: #111827;
   letter-spacing: -0.5px;
 }
+.beta-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  background: #fef3c7;
+  color: #d97706;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
 .subtitle {
   font-size: 15px;
   color: #6b7280;
@@ -231,6 +241,10 @@ body {
 }
 .footer__link:hover {
   text-decoration: underline;
+}
+.footer__test {
+  font-size: 13px;
+  color: #9ca3af;
 }
 
 /* ─── 스프레드시트 미리보기 ─── */

@@ -25,6 +25,7 @@ function App() {
   return (
     <div className="app">
       <header className="header">
+        <div className="beta-badge">🧪 테스트 사이트</div>
         <h1 className="logo">스냅문서</h1>
         <p className="subtitle">찍으면 문서가 됩니다</p>
       </header>
@@ -49,11 +50,14 @@ function App() {
       </main>
 
       <footer className="footer">
+        {/* TODO: 앱 출시 후 활성화
         <div className="footer__download">
           <span>📱 앱 다운로드:</span>
           <a href="#" className="footer__link">App Store</a>
           <a href="#" className="footer__link">Google Play</a>
         </div>
+        */}
+        <div className="footer__test">🧪 테스트 사이트 — 데이터는 24시간 후 자동 삭제됩니다</div>
       </footer>
     </div>
   );
