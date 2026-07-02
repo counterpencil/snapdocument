@@ -1,4 +1,4 @@
-import { useState, useCallback, type DragEvent } from 'react';
+import { useState, useCallback, useEffect, type DragEvent } from 'react';
 import * as XLSX from 'xlsx';
 import { buildSpreadsheetPreviewHtml } from './utils/spreadsheetRichPreview';
 import { initLocale, getLocale, setLocale, t } from './i18n';
@@ -18,7 +18,8 @@ interface Template {
   columnCount?: number;
 }
 
-const WORKER_URL = 'https://snapdocument-worker.counterpencil.workers.dev';
+// Worker URL — 배포 시 실제 Worker URL로 변경
+const WORKER_URL = import.meta.env.VITE_WORKER_URL || 'https://snapdocument-worker.counterpencil.workers.dev';
 
 function App() {
   const [locale, setLocaleState] = useState(initLocale());
@@ -47,9 +48,9 @@ function App() {
   const [result, setResult] = useState<{ mappedData: Record<string, string>; templateName: string } | null>(null);
   const [error, setError] = useState('');
 
-  useState(() => {
+  useEffect(() => {
     fetch(`${WORKER_URL}/api/templates`).then(r => r.json()).then(d => setTemplates(d.templates || [])).catch(() => {});
-  });
+  }, []);
 
   const selectedTemplate = templates.find(r => r.id === selectedTemplateId);
 
