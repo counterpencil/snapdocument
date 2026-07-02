@@ -200,7 +200,7 @@ export default {
     // GET /api/templates
     if (path === '/api/templates' && request.method === 'GET') {
       const list = Array.from(templates.values()).map(({ id, name, columns }) => ({
-        id, name, columnCount: columns.length,
+        id, name, columns, columnCount: columns.length,
       }));
       return jsonResponse({ templates: list });
     }

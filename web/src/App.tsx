@@ -114,20 +114,22 @@ function App() {
 
   const handleDocDrop = useCallback((e: DragEvent) => { e.preventDefault(); setDocDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleDocFile(f); }, [handleDocFile]);
 
-  const effectiveColumns = selectedTemplate ? selectedTemplate.columns : templateColumns;
-  const effectiveTemplateName = selectedTemplate ? selectedTemplate.name : templateFileName.replace(/\.(xlsx|xls)$/i, '');
-  const canAnalyze = inputText.trim() && effectiveColumns.length > 0;
+  const effectiveColumns = selectedTemplate?.columns?.length ? selectedTemplate.columns : templateColumns;
+  const effectiveTemplateName = selectedTemplate?.name || templateFileName.replace(/\.(xlsx|xls)$/i, '');
+  const canAnalyze = !!(inputText.trim() && effectiveColumns.length > 0);
 
   const handleAnalyze = async () => {
     if (!canAnalyze) return;
     setLoading(true); setError(''); setResult(null);
     try {
-      if (selectedTemplate) {
-        const res = await fetch(`${WORKER_URL}/api/analyze`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: inputText, templateId: selectedTemplateId }) });
-        const d = await res.json();
-        if (d.result) setResult({ mappedData: d.result.mappedData, templateName: effectiveTemplateName });
-        else setError(d.error || 'error');
-      }
+      const res = await fetch(`${WORKER_URL}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: inputText, templateId: selectedTemplateId || 'health-check' }),
+      });
+      const d = await res.json();
+      if (d.result) setResult({ mappedData: d.result.mappedData, templateName: effectiveTemplateName });
+      else setError(d.error || '변환 실패');
     } catch { setError(t('error.server')); }
     finally { setLoading(false); }
   };
