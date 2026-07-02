@@ -41,6 +41,17 @@ body {
   font-weight: 600;
   margin-bottom: 8px;
 }
+.top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.lang-toggle {
+  padding: 2px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 12px;
+  color: #6b7280;
+  cursor: pointer;
+}
+.lang-toggle:hover { border-color: #2563eb; color: #2563eb; }
 .subtitle {
   font-size: 15px;
   color: #6b7280;
